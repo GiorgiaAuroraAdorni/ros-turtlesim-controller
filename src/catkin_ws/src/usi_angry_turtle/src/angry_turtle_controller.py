@@ -1,9 +1,10 @@
 #!/usr/bin/env python
 #!/usr/bin/env python
 import rospy
+import random
 from geometry_msgs.msg import Twist
 from turtlesim.msg import Pose
-from turtlesim.srv import SetPen
+from turtlesim.srv import SetPen, Spawn, Kill
 from math import pow, atan2, sqrt, sin, cos
  
  
@@ -16,25 +17,37 @@ class TurtleBot:
 		# Publisher which will publish to the topic '/turtle1/cmd_vel'.
 		self.velocity_publisher = rospy.Publisher('/turtle1/cmd_vel', Twist, queue_size=10)
 
-		self.srv_setpen = rospy.ServiceProxy('turtle1/set_pen', SetPen)
-
 		# A subscriber to the topic '/turtle1/pose'. self.update_pose is called
 		# when a message of type Pose is received.
-		self.pose_subscriber = rospy.Subscriber('/turtle1/pose', Pose, self.update_pose)
+		self.pose_t1_subscriber = rospy.Subscriber('/turtle1/pose', Pose, self.turtle1_pose)
+		self.pose_t2_subscriber = rospy.Subscriber('/turtleTarget/pose', Pose, self.turtle2_pose)
 
-		self.pose = Pose()
+		self.pose_t1 = Pose()
+		self.pose_t2 = Pose()
 		self.rate = rospy.Rate(10)
 
-	def update_pose(self, data):
+		self.srv_setpen = rospy.ServiceProxy('turtle1/set_pen', SetPen)
+		self.spawn_turtle = rospy.ServiceProxy('/spawn', Spawn)
+		self.kill_turtle = rospy.ServiceProxy('/kill', Kill)
+
+
+	def turtle1_pose(self, data):
 		"""Callback function which is called when a new message of type Pose is received by the subscriber."""
-		self.pose = data
-		self.pose.x = round(self.pose.x, 4)
-		self.pose.y = round(self.pose.y, 4)
+		self.pose_t1 = data
+		self.pose_t1.x = round(self.pose_t1.x, 4)
+		self.pose_t1.y = round(self.pose_t1.y, 4)
+		self.pose_t1.theta = round(self.pose_t1.theta, 4)
+
+	def turtle2_pose(self, data):
+		"""Callback function which is called when a new message of type Pose is received by the subscriber."""
+		self.pose_t2 = data
+		self.pose_t2.x = round(self.pose_t2.x, 4)
+		self.pose_t2.y = round(self.pose_t2.y, 4)
  
 	def euclidean_distance(self, goal_pose):
 		"""Euclidean distance between current pose and the goal."""
-		return sqrt(pow((goal_pose.x - self.pose.x), 2) +
-					pow((goal_pose.y - self.pose.y), 2))
+		return sqrt(pow((goal_pose.x - self.pose_t1.x), 2) +
+					pow((goal_pose.y - self.pose_t1.y), 2))
  
 	def linear_vel(self, goal_pose, constant=1.5):
 		"""See video: https://www.youtube.com/watch?v=Qh15Nol5htM."""
@@ -42,15 +55,33 @@ class TurtleBot:
  
 	def steering_angle(self, goal_pose):
 		"""See video: https://www.youtube.com/watch?v=Qh15Nol5htM."""
-		return atan2(goal_pose.y - self.pose.y, goal_pose.x - self.pose.x)
+		return atan2(goal_pose.y - self.pose_t1.y, goal_pose.x - self.pose_t1.x)
  
 	def angular_vel(self, goal_pose, constant=6):
 		"""See video: https://www.youtube.com/watch?v=Qh15Nol5htM."""
-		return constant * (self.steering_angle(goal_pose) - self.pose.theta)
-		# return atan2(sin(self.steering_angle(goal_pose) - self.pose.theta), cos(self.steering_angle(goal_pose) - self.pose.theta))
+		return constant * (self.steering_angle(goal_pose) - self.pose_t1.theta)
+		# return atan2(sin(self.steering_angle(goal_pose) - self.pose_t1.theta), cos(self.steering_angle(goal_pose) - self.pose_t1.theta))
+
+	def spawn_new_turtle(self):
+		"""" Create a new turtle"""
+		x = random.randint(1, 11)
+		y = random.randint(1, 11)
+		self.spawn_turtle(x, y, 0, "turtleTarget")
 
 	def move2goal(self):
 		"""Moves the turtle to the goal."""
+		self.spawn_new_turtle()
+
+		# See how far are the turtles
+		# turtle2_pose = get_turtle2_pose*()
+		# distance = self.euclidean_distance(pose_t2)
+		distance = 0
+		tolerance = 1
+		if (distance <= tolerance):
+			print('ok')
+
+
+
 		# U
 		# x = [1, 1, 2, 3, 3]
 		# y = [8, 5, 4, 5, 8]
@@ -96,7 +127,7 @@ class TurtleBot:
 				# Publish at the desired rate.
 				self.rate.sleep()
 
-			self.srv_setpen(1,0,0,0,0)
+			self.srv_setpen(255,255,255,3,0)
 	 
 		# Stopping our robot after the movement is over.
 		vel_msg.linear.x = 0
