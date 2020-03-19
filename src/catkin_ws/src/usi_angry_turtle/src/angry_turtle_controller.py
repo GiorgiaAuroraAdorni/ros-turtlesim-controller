@@ -2,9 +2,11 @@
 #!/usr/bin/env python
 import rospy
 import random
+import sys
 from geometry_msgs.msg import Twist
-from turtlesim.msg import Pose
-from turtlesim.srv import SetPen, Spawn, Kill
+from turtlesim.msg import *
+from turtlesim.srv import *
+from std_srvs.srv import *
 from math import pow, atan2, sqrt, sin, cos
  
  
@@ -26,10 +28,10 @@ class TurtleBot:
 		self.pose_t2 = Pose()
 		self.rate = rospy.Rate(10)
 
-		self.srv_setpen = rospy.ServiceProxy('turtle1/set_pen', SetPen)
+		self.srv_setpen = rospy.ServiceProxy('/turtle1/set_pen', SetPen)
 		self.spawn_turtle = rospy.ServiceProxy('/spawn', Spawn)
 		self.kill_turtle = rospy.ServiceProxy('/kill', Kill)
-
+		self.clear = rospy.ServiceProxy('/clear', Empty)
 
 	def turtle1_pose(self, data):
 		"""Callback function which is called when a new message of type Pose is received by the subscriber."""
@@ -64,35 +66,24 @@ class TurtleBot:
 
 	def spawn_new_turtle(self):
 		"""" Create a new turtle"""
-		x = random.randint(1, 11)
-		y = random.randint(1, 11)
+		x = random.randint(4, 4)
+		y = random.randint(4, 4)
 		self.spawn_turtle(x, y, 0, "turtleTarget")
+
+	def become_angry(self):
+		print 'killing turtle target'
+		try:
+			self.kill_turtle("turtleTarget")
+		except:
+			pass
+		self.clear()
+		sys.exit()
 
 	def move2goal(self):
 		"""Moves the turtle to the goal."""
 		self.spawn_new_turtle()
 
-		# See how far are the turtles
-		# turtle2_pose = get_turtle2_pose*()
-		# distance = self.euclidean_distance(pose_t2)
-		distance = 0
 		tolerance = 1
-		if (distance <= tolerance):
-			print('ok')
-
-
-
-		# U
-		# x = [1, 1, 2, 3, 3]
-		# y = [8, 5, 4, 5, 8]
-
-		# S
-		# [7, 4, 7, 4]
-		# [8, 6.67, 5.34, 4]
-
-		# I
-		# [9, 9]
-		# [4, 8]
 
 		p = [Pose(x=1, y=8), Pose(x=1, y=5), Pose(x=2, y=4), Pose(x=3, y=5), Pose(x=3, y=8), 
 			 Pose(x=7, y=8), Pose(x=4, y=6.67), Pose(x=7, y=5.34), Pose(x=4, y=4), 
@@ -106,11 +97,9 @@ class TurtleBot:
 	 			self.srv_setpen(0,0,0,0,1)
 
 			vel_msg = Twist()
-	 
-			while self.euclidean_distance(goal_pose) >= distance_tolerance:
-				# Porportional controller.
-				# https://en.wikipedia.org/wiki/Proportional_control
-	 
+	 		
+	 		while self.euclidean_distance(goal_pose) >= distance_tolerance:
+				# Porportional controller
 				# Linear velocity in the x-axis.
 				vel_msg.linear.x = self.linear_vel(goal_pose)
 				vel_msg.linear.y = 0
@@ -126,6 +115,10 @@ class TurtleBot:
 	 
 				# Publish at the desired rate.
 				self.rate.sleep()
+
+				# See how far are the turtles	
+				if self.euclidean_distance(self.pose_t2) < tolerance:
+					self.become_angry()
 
 			self.srv_setpen(255,255,255,3,0)
 	 
