@@ -28,7 +28,8 @@ class TurtleBot:
 		self.pose_t2 = Pose()
 		self.rate = rospy.Rate(10)
 
-		self.srv_setpen = rospy.ServiceProxy('/turtle1/set_pen', SetPen)
+		self.srv_setpen1 = rospy.ServiceProxy('/turtle1/set_pen', SetPen)
+		self.srv_setpen2 = rospy.ServiceProxy('/turtleTarget/set_pen', SetPen)
 		self.spawn_turtle = rospy.ServiceProxy('/spawn', Spawn)
 		self.kill_turtle = rospy.ServiceProxy('/kill', Kill)
 		self.clear = rospy.ServiceProxy('/clear', Empty)
@@ -66,11 +67,28 @@ class TurtleBot:
 
 	def spawn_new_turtle(self):
 		"""" Create a new turtle"""
-		x = random.randint(4, 4)
-		y = random.randint(4, 4)
+		x = random.randint(1, 12)
+		y = random.randint(1, 12)
 		self.spawn_turtle(x, y, 0, "turtleTarget")
 
 	def become_angry(self):
+		print 'pursuing the offender turtle'
+		vel_msg = Twist()
+
+		while self.euclidean_distance(self.pose_t2) >= 0.1:
+			# Porportional controller
+			# Linear velocity in the x-axis.
+			vel_msg.linear.x = self.linear_vel(self.pose_t2)
+
+			# Angular velocity in the z-axis.
+			vel_msg.angular.z = self.angular_vel(self.pose_t2)
+
+			# Publishing our vel_msg
+			self.velocity_publisher.publish(vel_msg)
+
+			# Publish at the desired rate.
+			self.rate.sleep()
+
 		print 'killing turtle target'
 		try:
 			self.kill_turtle("turtleTarget")
@@ -82,8 +100,9 @@ class TurtleBot:
 	def move2goal(self):
 		"""Moves the turtle to the goal."""
 		self.spawn_new_turtle()
+		self.srv_setpen2(0,0,0,0,1)
 
-		tolerance = 1
+		tolerance = 2
 
 		p = [Pose(x=1, y=8), Pose(x=1, y=5), Pose(x=2, y=4), Pose(x=3, y=5), Pose(x=3, y=8), 
 			 Pose(x=7, y=8), Pose(x=4, y=6.67), Pose(x=7, y=5.34), Pose(x=4, y=4), 
@@ -94,7 +113,7 @@ class TurtleBot:
 
 		for idx, goal_pose in enumerate(p):
 	 		if idx in pen_offline:
-	 			self.srv_setpen(0,0,0,0,1)
+	 			self.srv_setpen1(0,0,0,0,1)
 
 			vel_msg = Twist()
 	 		
@@ -102,34 +121,31 @@ class TurtleBot:
 				# Porportional controller
 				# Linear velocity in the x-axis.
 				vel_msg.linear.x = self.linear_vel(goal_pose)
-				vel_msg.linear.y = 0
-				vel_msg.linear.z = 0
-	 
-				 # Angular velocity in the z-axis.
-				vel_msg.angular.x = 0
-				vel_msg.angular.y = 0
+	
+				# Angular velocity in the z-axis.
 				vel_msg.angular.z = self.angular_vel(goal_pose)
-	 
+	
 				# Publishing our vel_msg
 				self.velocity_publisher.publish(vel_msg)
-	 
+	
 				# Publish at the desired rate.
 				self.rate.sleep()
 
 				# See how far are the turtles	
 				if self.euclidean_distance(self.pose_t2) < tolerance:
+					self.srv_setpen1(0,0,0,0,1)
 					self.become_angry()
 
-			self.srv_setpen(255,255,255,3,0)
-	 
+			self.srv_setpen1(255,255,255,3,0)
+	
 		# Stopping our robot after the movement is over.
 		vel_msg.linear.x = 0
 		vel_msg.angular.z = 0
 		self.velocity_publisher.publish(vel_msg)
- 
+
 		# If we press control + C, the node will stop.
 		rospy.spin()
- 
+
 if __name__ == '__main__':
 	try:
 		x = TurtleBot()
