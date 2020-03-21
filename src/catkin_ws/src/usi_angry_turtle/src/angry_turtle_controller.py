@@ -59,6 +59,12 @@ class TurtleBot:
 
         self.pose_target_turtles[name] = data
 
+    def sleep(self):
+        """ """
+        self.rate.sleep()
+        if rospy.is_shutdown():
+            raise rospy.ROSInterruptException
+
     def euclidean_distance(self, goal_pose):
         """
         Euclidean distance between current pose and the goal.
@@ -114,7 +120,7 @@ class TurtleBot:
         self.vel_msg.angular.z = 0
         self.velocity_publisher.publish(self.vel_msg)
 
-    def go_to_initial_position(self, tollerance=0.1):
+    def go_to_initial_position(self, total_turtles, tollerance=0.1):
         """After finding a turtle, return to the initial point and restart writing"""
         print 'Positioning'
         self.srv_setpen(self.PEN_OFF)
@@ -125,9 +131,10 @@ class TurtleBot:
 
         self.rotate(init_pose)
 
-        print 'Ready'
+        print 'Ready to write'
 
-        self.writing(tollerance)
+        self.state = TurtleState.WRITING_STATE
+        self.writing(total_turtles, tollerance)
 
     def rotate(self, rotation_pose, rot_tollerance=0.017):
         while abs(self.angle_difference(rotation_pose)) >= rot_tollerance:
@@ -136,9 +143,10 @@ class TurtleBot:
         # Forcing our robot to stop
         self.stop_walking()
 
-    def writing(self, tollerance, pursuing_tolerance=2, p=None, pen_offline=None):
+    def writing(self, total_turtles, tollerance, pursuing_tolerance=2, p=None, pen_offline=None):
         """
 
+        :param total_turtles
         :param tollerance:
         :param pursuing_tolerance:
         :param p:
@@ -153,7 +161,6 @@ class TurtleBot:
                  Pose(x=7, y=5.34, theta=11 * pi / 6), Pose(x=4, y=4, theta=7 * pi / 6), Pose(x=9, y=4, theta=0),
                  Pose(x=9, y=8, theta=pi / 2)]
 
-        write = True
         self.srv_setpen(self.PEN_ON)
 
         for idx, goal_pose in enumerate(p):
@@ -163,64 +170,102 @@ class TurtleBot:
             while self.euclidean_distance(goal_pose) >= tollerance:
                 self.move_to_goal(goal_pose)
 
-                # See how far are the turtles
-                # TODO insegui la tartaruga piu vicina
-                if self.euclidean_distance(self.pose_t1) < pursuing_tolerance:
-                    self.srv_setpen(self.PEN_OFF)
-                    print 'Found another turtle'
-                    write = False
-                    break
+                goal_turtle_name = self.get_close_turtle(total_turtles)
 
-            if not write:
+                if self.euclidean_distance(self.pose_target_turtles[goal_turtle_name]) < pursuing_tolerance:
+                    self.srv_setpen(self.PEN_OFF)
+                    print 'Turtle to close'
+                    self.state = TurtleState.ANGRY_STATE
+                    break
+            # FIXME
+            if not self.state == TurtleState.WRITING_STATE:
                 break
 
             self.rotate(goal_pose)
             self.srv_setpen(self.PEN_ON)
 
-        # FIXME culo
-        if not write:
-            self.become_angry()
+        # FIXME
+        if self.state == TurtleState.ANGRY_STATE:
+            self.become_angry(total_turtles, goal_turtle_name)
 
-    def become_angry(self):
+        # If the turtle is able to finish the world without any interruption the execution ends
+        self.clear()
+        sys.exit()
+
+    def get_close_turtle(self, total_turtles):
+        """
+         Return the name of the closer turtle
+         :param total_turtles:
+         :return:
+        """
+        target_distances = np.array([])
+
+        for t in range(total_turtles):
+            name = 'turtleTarget' + str(t)
+            dist = self.euclidean_distance(self.pose_target_turtles[name])
+            target_distances = np.append(target_distances, dist)
+
+        goal_turtle = target_distances.argmin()
+        goal_turtle_name = 'turtleTarget' + str(goal_turtle)
+
+        return goal_turtle_name
+
+    def get_future_pose(self, goal_turtle_name):
+        """
+
+        :param goal_turtle_name:
+        :return:
+        """
+        target_pose = self.pose_target_turtles[goal_turtle_name]
+
+        constant = 1.1
+
+        m = constant * target_pose.linear_velocity * self.euclidean_distance(target_pose)
+
+        goal_pose = Pose()
+        goal_pose.x = target_pose.x + m * cos(target_pose.theta)
+        goal_pose.y = target_pose.y + m * sin(target_pose.theta)
+
+        return goal_pose, target_pose
+
+    def become_angry(self, total_turtles, goal_turtle_name):
         """
         Move the hunter to the closer turtle.
         The angry turtle tries to look ahead m meter in front of the offender to intercept it.
-        m is directly proportional to the current speed (of the target turtle) times the current distance
+        m is directly proportional to the current speed (of the target turtle) times the current distance.
+        :param total_turtles:
+        :param goal_turtle_name:
         """
         print 'Pursuing the offender turtle'
         self.srv_setpen(self.PEN_OFF)
 
-        constant = 3
-        m = constant * self.pose_t1.linear_velocity * self.euclidean_distance(self.pose_t1)
-        print 'linear velocity'
-        print self.pose_t1.linear_velocity
-        print 'self.euclidean_distance(self.pose_t1)'
-        print self.euclidean_distance(self.pose_t1)
-        print 'm'
-        print m
+        # while goal_turtle_name == self.get_close_turtle(total_turtles):
+        goal_pose, target_pose = self.get_future_pose(goal_turtle_name)
 
-        goal_pose = Pose()
-        goal_pose.x = self.pose_t1.x + m * cos(self.pose_t1.theta)
-        goal_pose.y = self.pose_t1.y + m * sin(self.pose_t1.theta)
-
-        while self.euclidean_distance(self.pose_t1) >= 0.1:
+        while self.euclidean_distance(target_pose) >= 0.1:
             self.move_to_goal(goal_pose)
+            goal_pose, target_pose = self.get_future_pose(goal_turtle_name)
 
         # After finding a turtle, reset the stage
-        print 'Killing turtle target'
         try:
-            self.kill_turtle("turtleTarget")
-            print 'Killed turtle enemy'
+            self.kill_turtle(goal_turtle_name)
+            print 'Killed ' + goal_turtle_name
         except rospy.ServiceException:
             pass
         self.clear()
 
-        print 'returning'
-        self.go_to_initial_position()
+        # TODO
+        # if all target are dead:
+        #     self.state = TurtleState.FINAL_STATE
+        # else
+        # self.state = TurtleState.POSITIONING_STATE
+
+        print 'Returning'
+        self.go_to_initial_position(total_turtles)
 
     def move_to_goal(self, goal_pose):
         """
-
+        Moves the turtle to the goal.
         :param goal_pose:
         """
         # Proportional (P) controller
@@ -229,10 +274,7 @@ class TurtleBot:
 
         self.velocity_publisher.publish(self.vel_msg)
 
-        # TODO move to method
-        self.rate.sleep()
-        if rospy.is_shutdown():
-            raise rospy.ROSInterruptException
+        self.sleep()
 
     def rotate_to_goal(self, goal_pose):
         """
@@ -244,7 +286,7 @@ class TurtleBot:
 
         self.velocity_publisher.publish(self.vel_msg)
 
-        self.rate.sleep()
+        self.sleep()
 
     def main(self):
         """Moves the turtle to the goal."""
@@ -282,7 +324,6 @@ def targets_controller_thread(angry_turtle):
         set_pen = rospy.ServiceProxy('/%s/set_pen' % name, SetPen)
         set_pen(angry_turtle.PEN_OFF)
 
-    #  TODO Add automatic/random movement of the spawned turtles
     while not rospy.is_shutdown():
         for t in range(total_turtles):
             name = 'turtleTarget' + str(t)
@@ -292,8 +333,8 @@ def targets_controller_thread(angry_turtle):
             vel_msg.linear.x = 20 - random.random() * 30
             vel_msg.angular.z = 20 - random.random() * 16
             target_velocity_publisher[name].publish(vel_msg)
-            # TODO check if is shutdown and call exception
-            rate.sleep()
+
+            angry_turtle.sleep()
 
     # TODO when all the target are dead
     # clearStage()
