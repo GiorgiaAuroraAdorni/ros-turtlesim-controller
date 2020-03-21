@@ -78,11 +78,12 @@ class TurtleBot:
             # Linear velocity in the x-axis.
             vel_msg.linear.x = self.linear_vel(self.pose_t2)
 
-            # Angular velocity in the z-axis.
-            vel_msg.angular.z = self.angular_vel(self.pose_t2)
+        goal_pose = Pose()
+        goal_pose.x = self.pose_t1.x + m * cos(self.pose_t1.theta)
+        goal_pose.y = self.pose_t1.y + m * sin(self.pose_t1.theta)
 
-            # Publishing our vel_msg
-            self.velocity_publisher.publish(vel_msg)
+        while self.euclidean_distance(self.pose_t1) >= 0.1:
+            self.move_to_goal(goal_pose)
 
             # Publish at the desired rate.
             self.rate.sleep()
@@ -95,7 +96,35 @@ class TurtleBot:
         self.clear()
         sys.exit()
 
-    def move2goal(self):
+    def move_to_goal(self, goal_pose):
+        """
+
+        :param goal_pose:
+        """
+        # Proportional (P) controller
+        self.vel_msg.linear.x = self.linear_vel(goal_pose)    # Linear velocity in the x-axis.
+        self.vel_msg.angular.z = self.angular_vel(goal_pose)  # Angular velocity in the z-axis.
+
+        self.velocity_publisher.publish(self.vel_msg)
+
+        # TODO move to method
+        self.rate.sleep()
+        if rospy.is_shutdown():
+            raise rospy.ROSInterruptException
+
+    def rotate_to_goal(self, goal_pose):
+        """
+
+        :param goal_pose:
+        """
+        self.vel_msg.linear.x = 0
+        self.vel_msg.angular.z = self.angular_vel_rot(goal_pose)
+
+        self.velocity_publisher.publish(self.vel_msg)
+
+        self.rate.sleep()
+
+    def main(self):
         """Moves the turtle to the goal."""
         # TODO
         #  - [ ] Add rotation while the turtle writes 'USI'
@@ -114,52 +143,16 @@ class TurtleBot:
 
     tolerance = 2
 
-    p = [Pose(x=1, y=8), Pose(x=1, y=5), Pose(x=2, y=4), Pose(x=3, y=5), Pose(x=3, y=8),
-         Pose(x=7, y=8), Pose(x=4, y=6.67), Pose(x=7, y=5.34), Pose(x=4, y=4),
-         Pose(x=9, y=4), Pose(x=9, y=8), Pose(x=0, y=0)]
-    pen_offline = [0, 5, 9, 11]
+        self.go_to_initial_position()
+        self.stop_walking()
 
-    distance_tolerance = 0.1
-
-    for idx, goal_pose in enumerate(p):
-        if idx in pen_offline:
-            self.srv_setpen1(0, 0, 0, 0, 1)
-
-        vel_msg = Twist()
-
-        while self.euclidean_distance(goal_pose) >= distance_tolerance:
-            # Porportional controller
-            # Linear velocity in the x-axis.
-            vel_msg.linear.x = self.linear_vel(goal_pose)
-
-            # Angular velocity in the z-axis.
-            vel_msg.angular.z = self.angular_vel(goal_pose)
-
-            # Publishing our vel_msg
-            self.velocity_publisher.publish(vel_msg)
-
-            # Publish at the desired rate.
-            self.rate.sleep()
-
-            # See how far are the turtles
-            if self.euclidean_distance(self.pose_t2) < tolerance:
-                self.srv_setpen1(0, 0, 0, 0, 1)
-                self.become_angry()
-
-        self.srv_setpen1(255, 255, 255, 3, 0)
-
-    # Stopping our robot after the movement is over.
-    vel_msg.linear.x = 0
-    vel_msg.angular.z = 0
-    self.velocity_publisher.publish(vel_msg)
-
-    # If we press control + C, the node will stop.
-    rospy.spin()
+        # If we press control + C, the node will stop.
+        rospy.spin()
 
 
 if __name__ == '__main__':
     try:
         x = TurtleBot()
-        x.move2goal()
+        x.main()
     except rospy.ROSInterruptException:
         pass
