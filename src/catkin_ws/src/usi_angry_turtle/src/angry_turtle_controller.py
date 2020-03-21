@@ -64,6 +64,7 @@ class TurtleBot:
         """
         Callback function which is called when a new message of type Pose is received by the subscriber.
         :param data:
+        :param name:
         """
         data.x = round(data.x, 4)
         data.y = round(data.y, 4)
@@ -79,62 +80,65 @@ class TurtleBot:
 
     def euclidean_distance(self, goal_pose):
         """
-        Euclidean distance between current pose and the goal.
-        :param goal_pose:
-        :return:
+        :param goal_pose
+        :return: Euclidean distance between current pose and the goal pose
         """
         return sqrt(pow((goal_pose.x - self.pose.x), 2) +
                     pow((goal_pose.y - self.pose.y), 2))
 
     def linear_vel(self, goal_pose, constant=4):
         """
-        Return a clipped linear velocity
-        :param goal_pose:
-        :param constant:
-        :return:
+        :param goal_pose
+        :param constant
+        :return: clipped linear velocity
         """
         velocity = constant * self.euclidean_distance(goal_pose)
         return min(max(-5, velocity), 5)
 
     def steering_angle(self, goal_pose):
         """
-
         :param goal_pose:
-        :return:
+        :return: steering angle
         """
         return atan2(goal_pose.y - self.pose.y, goal_pose.x - self.pose.x)
 
     def angular_vel(self, goal_pose, constant=8):
         """
-
         :param goal_pose:
         :param constant:
-        :return:
+        :return: angular velocity
         """
         # return constant * (self.steering_angle(goal_pose) - self.pose.theta)
         return constant * atan2(sin(self.steering_angle(goal_pose) - self.pose.theta),
                                 cos(self.steering_angle(goal_pose) - self.pose.theta))
 
     def angle_difference(self, goal_pose):
+        """
+        :param goal_pose:
+        :return: the difference between the current angle and the goal angle
+        """
         return atan2(sin(goal_pose.theta - self.pose.theta), cos(goal_pose.theta - self.pose.theta))
 
     def angular_vel_rot(self, goal_pose, constant=12):
         """
-
         :param goal_pose:
         :param constant:
-        :return:
+        :return: the angular velocity computed using the angle difference
         """
         return constant * self.angle_difference(goal_pose)
 
     def stop_walking(self):
-        # Stopping our robot after the movement is over.
+        """
+        Stop our robot after the movement is over
+        """
         self.vel_msg.linear.x = 0
         self.vel_msg.angular.z = 0
         self.velocity_publisher.publish(self.vel_msg)
 
     def go_to_initial_position(self, tollerance=0.1):
-        """After finding a turtle, return to the initial point and restart writing"""
+        """After finding a turtle, return to the initial point and restart writing
+        :param tollerance:
+        """
         self.srv_setpen(self.PEN_OFF)
 
         init_pose = Pose(x=1, y=8, theta=3 * pi / 2)
@@ -145,6 +149,11 @@ class TurtleBot:
         self.state = TurtleState.WRITING_STATE
 
     def rotate(self, rotation_pose, rot_tollerance=0.017):
+        """
+
+        :param rotation_pose:
+        :param rot_tollerance:
+        """
         while abs(self.angle_difference(rotation_pose)) >= rot_tollerance:
             self.rotate_to_goal(rotation_pose)
 
@@ -162,7 +171,7 @@ class TurtleBot:
             pen_offline = [5, 11]
 
         if p is None:
-            p = [Pose(x=1, y=5, theta=5*pi/3), Pose(x=2, y=4, theta=0), Pose(x=3, y=4, theta=pi / 6),
+            p = [Pose(x=1, y=5, theta=5 * pi / 3), Pose(x=2, y=4, theta=0), Pose(x=3, y=4, theta=pi / 6),
                  Pose(x=4, y=5, theta=pi / 2), Pose(x=4, y=8, theta=0),
 
                  Pose(x=8, y=8, theta=5 * pi / 6), Pose(x=5.5, y=7, theta=5 * pi / 4),
@@ -207,8 +216,7 @@ class TurtleBot:
 
     def get_closer_turtle(self):
         """
-         Return the name of the closer turtle
-         :return:
+         :return: the name of the closer turtle
         """
         min_distance = float("inf")
         min_turtle = None
@@ -226,8 +234,7 @@ class TurtleBot:
 
     def get_future_pose(self):
         """
-
-        :return:
+        :return: the pose of the target turtle and the goal pose of the turtle "in the future"
         """
         target_pose = self.pose_target_turtles[self.goal_turtle_name]
 
@@ -280,14 +287,14 @@ class TurtleBot:
         :param goal_pose:
         """
         # Proportional (P) controller
-        self.vel_msg.linear.x = self.linear_vel(goal_pose)    # Linear velocity in the x-axis.
+        self.vel_msg.linear.x = self.linear_vel(goal_pose)  # Linear velocity in the x-axis.
         self.vel_msg.angular.z = self.angular_vel(goal_pose)  # Angular velocity in the z-axis.
 
         self.velocity_publisher.publish(self.vel_msg)
 
     def rotate_to_goal(self, goal_pose):
         """
-
+        Rotate the turtle to reach the orientation pose.
         :param goal_pose:
         """
         self.vel_msg.linear.x = 0
@@ -296,7 +303,9 @@ class TurtleBot:
         self.velocity_publisher.publish(self.vel_msg)
 
     def main(self):
-        # Create a new tread that generates and moves the target turtles
+        """
+        Create a new tread that generates and moves the target turtles
+        """
         thread = Thread(target=targets_controller_thread, args=[self])
         thread.start()
 
@@ -331,9 +340,8 @@ class TurtleBot:
 
 def targets_controller_thread(angry_turtle):
     """
-
-    :param total_turtles:
-    :param angry_turtle:
+    Function that handles the tread that has to generate and move the enemy turtles
+    :param angry_turtle: reference to te class TurtleBot
     """
 
     spawn_turtle = rospy.ServiceProxy('/spawn', Spawn)
