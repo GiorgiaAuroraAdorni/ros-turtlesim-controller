@@ -1,10 +1,10 @@
 #!/usr/bin/env python
 import random
-import sys
-from math import pow, atan2, sqrt, sin, cos
+from math import *
+from threading import Thread
 
 import rospy
-from geometry_msgs.msg import Twist
+from geometry_msgs.msg import *
 from std_srvs.srv import *
 from turtlesim.msg import *
 from turtlesim.srv import *
@@ -21,31 +21,43 @@ class TurtleBot:
 
         # A subscriber to the topic '/turtle1/pose'. self.update_pose is called
         # when a message of type Pose is received.
-        self.pose_t1_subscriber = rospy.Subscriber('/turtle1/pose', Pose, self.turtle1_pose)
-        self.pose_t2_subscriber = rospy.Subscriber('/turtleTarget/pose', Pose, self.turtle2_pose)
+        self.pose_subscriber = rospy.Subscriber('/turtle1/pose', Pose, self.turtle_pose)
 
-        self.pose_t1 = Pose()
-        self.pose_t2 = Pose()
+        self.pose = Pose()
+        self.pose_target_turtles = dict()
+
         self.rate = rospy.Rate(10)
 
-        self.srv_setpen1 = rospy.ServiceProxy('/turtle1/set_pen', SetPen)
-        self.srv_setpen2 = rospy.ServiceProxy('/turtleTarget/set_pen', SetPen)
-        self.spawn_turtle = rospy.ServiceProxy('/spawn', Spawn)
+        self.vel_msg = Twist()
+
+        self.PEN_ON = SetPenRequest(255, 255, 255, 3, 0)
+        self.PEN_OFF = SetPenRequest(0, 0, 0, 0, 1)
+
+        self.srv_setpen = rospy.ServiceProxy('/turtle1/set_pen', SetPen)
+
         self.kill_turtle = rospy.ServiceProxy('/kill', Kill)
         self.clear = rospy.ServiceProxy('/clear', Empty)
 
-    def turtle1_pose(self, data):
-        """Callback function which is called when a new message of type Pose is received by the subscriber."""
-        self.pose_t1 = data
-        self.pose_t1.x = round(self.pose_t1.x, 4)
-        self.pose_t1.y = round(self.pose_t1.y, 4)
-        self.pose_t1.theta = round(self.pose_t1.theta, 4)
+    def turtle_pose(self, data):
+        """
+        Callback function which is called when a new message of type Pose is received by the subscriber.
+        :param data:
+        """
+        self.pose = data
+        self.pose.x = round(self.pose.x, 4)
+        self.pose.y = round(self.pose.y, 4)
+        self.pose.theta = round(self.pose.theta, 4)
 
-    def turtle2_pose(self, data):
-        """Callback function which is called when a new message of type Pose is received by the subscriber."""
-        self.pose_t2 = data
-        self.pose_t2.x = round(self.pose_t2.x, 4)
-        self.pose_t2.y = round(self.pose_t2.y, 4)
+    def turtle_target_pose(self, data, name):
+        """
+        Callback function which is called when a new message of type Pose is received by the subscriber.
+        :param data:
+        """
+        data.x = round(data.x, 4)
+        data.y = round(data.y, 4)
+        data.linear_velocity = round(data.linear_velocity, 4)
+
+        self.pose_target_turtles[name] = data
 
     def euclidean_distance(self, goal_pose):
         """Euclidean distance between current pose and the goal."""
@@ -126,28 +138,59 @@ class TurtleBot:
 
     def main(self):
         """Moves the turtle to the goal."""
-        # TODO
-        #  - [ ] Add rotation while the turtle writes 'USI'
-        #  - [ ] Add turtles
-        #       - [ ] Add automatic/random movement of the spawned turtles
-        #       - [ ] Move the hunter to the closer turtle
-        #  - [ ] Add loop the enable the turtle writing again from the beginning ignoring the other turtles: state
-        #        machine WRITING, ANGRY, RETURNING.
-        #  - [ ] The angry turtle tries to look ahead m meter in front of the offender to intercept it.
-        #        M is directly proportional to the current speed times the current distance
-        #  - [ ] Eliminate the offender if is closer than a threshold
-
-        self.spawn_new_turtle()
-
-    self.srv_setpen2(0, 0, 0, 0, 1)
-
-    tolerance = 2
+        thread = Thread(target=targets_controller_thread, args=[self])
+        thread.start()
 
         self.go_to_initial_position()
         self.stop_walking()
 
         # If we press control + C, the node will stop.
         rospy.spin()
+
+
+def targets_controller_thread(angry_turtle):
+    # FIXME: spawn new turtles every n seconds
+    total_turtles = 2
+
+    spawn_turtle = rospy.ServiceProxy('/spawn', Spawn)
+
+    target_velocity_publisher = dict()
+
+    rate = rospy.Rate(10)
+
+    for t in range(total_turtles):
+        name = 'turtleTarget' + str(t)
+
+        offender_x = random.randint(1, 12)
+        offender_y = random.randint(1, 12)
+        spawn_turtle(offender_x, offender_y, 0, name)
+
+        rospy.Subscriber('/%s/pose' % name, Pose, angry_turtle.turtle_target_pose, name)
+        target_velocity_publisher[name] = rospy.Publisher('/%s/cmd_vel' % name, Twist, queue_size=10)
+
+        rospy.wait_for_service('/%s/set_pen' % name)
+        set_pen = rospy.ServiceProxy('/%s/set_pen' % name, SetPen)
+        set_pen(angry_turtle.PEN_OFF)
+
+    #  TODO Add automatic/random movement of the spawned turtles
+    while not rospy.is_shutdown():
+        for t in range(total_turtles):
+            name = 'turtleTarget' + str(t)
+
+            # The turtle walk randomly if it is not a teleoperated turtle.
+            vel_msg = Twist()
+            vel_msg.linear.x = 20 - random.random() * 30
+            vel_msg.angular.z = 20 - random.random() * 16
+            target_velocity_publisher[name].publish(vel_msg)
+            # TODO check if is shutdown and call exception
+            rate.sleep()
+
+    # TODO when all the target are dead
+    # clearStage()
+    # sys.exit()
+
+
+    pass
 
 
 if __name__ == '__main__':
