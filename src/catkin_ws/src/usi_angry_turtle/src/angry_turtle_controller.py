@@ -11,6 +11,9 @@ from turtlesim.srv import *
 
 
 class TurtleBot:
+    PEN_ON = SetPenRequest(255, 255, 255, 3, 0)
+    PEN_OFF = SetPenRequest(0, 0, 0, 0, 1)
+
     def __init__(self):
         # Creates a node with name 'turtlebot_controller' and make sure it is a
         # unique node (using anonymous=True).
@@ -29,9 +32,6 @@ class TurtleBot:
         self.rate = rospy.Rate(10)
 
         self.vel_msg = Twist()
-
-        self.PEN_ON = SetPenRequest(255, 255, 255, 3, 0)
-        self.PEN_OFF = SetPenRequest(0, 0, 0, 0, 1)
 
         self.srv_setpen = rospy.ServiceProxy('/turtle1/set_pen', SetPen)
 
@@ -119,7 +119,7 @@ class TurtleBot:
         print 'Positioning'
         self.srv_setpen(self.PEN_OFF)
 
-        init_pose = Pose(x=1, y=8, theta=3*pi/2)
+        init_pose = Pose(x=1, y=8, theta=3 * pi / 2)
         while self.euclidean_distance(init_pose) >= tollerance:
             self.move_to_goal(init_pose)
 
@@ -130,8 +130,6 @@ class TurtleBot:
         self.writing(tollerance)
 
     def rotate(self, rotation_pose, rot_tollerance=0.017):
-        # FIXME remove print
-        print 'Trying to rotate'
         while abs(self.angle_difference(rotation_pose)) >= rot_tollerance:
             self.rotate_to_goal(rotation_pose)
 
@@ -150,10 +148,10 @@ class TurtleBot:
             pen_offline = [4, 8]
 
         if p is None:
-            p = [Pose(x=1, y=5, theta=11*pi/6), Pose(x=2, y=4, theta=pi/6), Pose(x=3, y=5, theta=pi/2),
-                 Pose(x=3, y=8, theta=0), Pose(x=7, y=8, theta=7*pi/6), Pose(x=4, y=6.67, theta=11*pi/6),
-                 Pose(x=7, y=5.34, theta=11*pi/6), Pose(x=4, y=4, theta=7*pi/6), Pose(x=9, y=4, theta=0),
-                 Pose(x=9, y=8, theta=pi/2)]
+            p = [Pose(x=1, y=5, theta=11 * pi / 6), Pose(x=2, y=4, theta=pi / 6), Pose(x=3, y=5, theta=pi / 2),
+                 Pose(x=3, y=8, theta=0), Pose(x=7, y=8, theta=7 * pi / 6), Pose(x=4, y=6.67, theta=11 * pi / 6),
+                 Pose(x=7, y=5.34, theta=11 * pi / 6), Pose(x=4, y=4, theta=7 * pi / 6), Pose(x=9, y=4, theta=0),
+                 Pose(x=9, y=8, theta=pi / 2)]
 
         write = True
         self.srv_setpen(self.PEN_ON)
@@ -184,11 +182,14 @@ class TurtleBot:
             self.become_angry()
 
     def become_angry(self):
+        """
+        Move the hunter to the closer turtle.
+        The angry turtle tries to look ahead m meter in front of the offender to intercept it.
+        m is directly proportional to the current speed (of the target turtle) times the current distance
+        """
         print 'Pursuing the offender turtle'
         self.srv_setpen(self.PEN_OFF)
-        # TODO: Move the hunter to the closer turtle
-        #  The angry turtle tries to look ahead m meter in front of the offender to intercept it.
-        #  m is directly proportional to the current speed (of the target turtle) times the current distance
+
         constant = 3
         m = constant * self.pose_t1.linear_velocity * self.euclidean_distance(self.pose_t1)
         print 'linear velocity'
@@ -297,7 +298,6 @@ def targets_controller_thread(angry_turtle):
     # TODO when all the target are dead
     # clearStage()
     # sys.exit()
-
 
     pass
 
