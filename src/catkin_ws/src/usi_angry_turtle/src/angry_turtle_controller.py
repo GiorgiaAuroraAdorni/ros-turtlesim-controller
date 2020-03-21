@@ -3,11 +3,19 @@ import random
 from math import *
 from threading import Thread
 
+import numpy as np
 import rospy
 from geometry_msgs.msg import *
 from std_srvs.srv import *
 from turtlesim.msg import *
 from turtlesim.srv import *
+
+
+class TurtleState:
+    WRITING_STATE = "writing"
+    ANGRY_STATE = "angry"
+    POSITIONING_STATE = "positioning"
+    FINAL_STATE = "final"
 
 
 class TurtleBot:
@@ -37,6 +45,8 @@ class TurtleBot:
 
         self.kill_turtle = rospy.ServiceProxy('/kill', Kill)
         self.clear = rospy.ServiceProxy('/clear', Empty)
+
+        self.state = None
 
     def turtle_pose(self, data):
         """
@@ -293,7 +303,9 @@ class TurtleBot:
         thread = Thread(target=targets_controller_thread, args=[self])
         thread.start()
 
-        self.go_to_initial_position()
+        self.state = TurtleState.POSITIONING_STATE
+        self.go_to_initial_position(total_turtles)
+
         self.stop_walking()
 
         # If we press control + C, the node will stop.
