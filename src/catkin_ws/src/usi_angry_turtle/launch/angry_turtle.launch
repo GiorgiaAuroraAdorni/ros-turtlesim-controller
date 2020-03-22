@@ -1,0 +1,4 @@
+<launch>
+  <node name="turtlesim" pkg="turtlesim" type="turtlesim_node" />
+  <node name="angry_turtle" pkg="usi_angry_turtle" type="angry_turtle_controller.py" />
+</launch>
