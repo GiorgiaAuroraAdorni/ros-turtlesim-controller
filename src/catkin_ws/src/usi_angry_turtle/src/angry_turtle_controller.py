@@ -253,6 +253,7 @@ class TurtleBot:
         Move the hunter to the closer turtle.
         The angry turtle tries to look ahead m meter in front of the offender to intercept it.
         m is directly proportional to the current speed (of the target turtle) times the current distance.
+        :param capture_tollerance
         """
         self.srv_setpen(self.PEN_OFF)
 
@@ -362,10 +363,10 @@ class TargetsController(Thread):
         """
         name = 'turtleTarget' + str(t)
 
-        offender_x = random.randint(1, 12)
-        offender_y = random.randint(1, 12)
+        x = random.randint(1, 12)
+        y = random.randint(1, 12)
 
-        self.spawn_turtle(offender_x, offender_y, 0, name)
+        self.spawn_turtle(x, y, 0, name)
         rospy.Subscriber('/%s/pose' % name, Pose, self.args.turtle_target_pose, name)
 
         self.target_velocity_publisher[name] = rospy.Publisher('/%s/cmd_vel' % name, Twist, queue_size=10)
@@ -374,6 +375,9 @@ class TargetsController(Thread):
         set_pen = rospy.ServiceProxy('/%s/set_pen' % name, SetPen)
         set_pen(self.args.PEN_OFF)
 
+        self.c_x = 0
+        self.c_y = 0
+
     def random_walking(self, t):
         """
         Lets the turtle walk randomly if it is not a teleoperated turtle
@@ -381,8 +385,10 @@ class TargetsController(Thread):
         """
         name = 'turtleTarget' + str(t)
 
-        self.vel_msg.linear.x = 5 - random.random() * 10
-        self.vel_msg.angular.z = 2 - random.random() * 4
+        self.vel_msg.linear.x = self.c_x + 6 - random.random() * 4
+        self.vel_msg.angular.z = self.c_y + 3 - random.random()
+        self.c_x = 1.1 * t * self.vel_msg.linear.x / self.args.total_turtles
+        self.c_y = t * self.vel_msg.angular.z / self.args.total_turtles
         self.target_velocity_publisher[name].publish(self.vel_msg)
 
     def run(self):
@@ -394,6 +400,7 @@ class TargetsController(Thread):
 
         while not rospy.is_shutdown():
             for t in range(self.total_turtles):
+
                 self.random_walking(t)
 
             self.rate.sleep()
