@@ -354,6 +354,9 @@ class TargetsController(Thread):
 
         self.total_turtles = self.args.total_turtles
 
+        self.c_lin = 0
+        self.c_ang = 0
+
         return
 
     def spawn_turtles(self, t):
@@ -375,9 +378,6 @@ class TargetsController(Thread):
         set_pen = rospy.ServiceProxy('/%s/set_pen' % name, SetPen)
         set_pen(self.args.PEN_OFF)
 
-        self.c_x = 0
-        self.c_y = 0
-
     def random_walking(self, t):
         """
         Lets the turtle walk randomly if it is not a teleoperated turtle
@@ -385,10 +385,10 @@ class TargetsController(Thread):
         """
         name = 'turtleTarget' + str(t)
 
-        self.vel_msg.linear.x = self.c_x + 6 - random.random() * 4
-        self.vel_msg.angular.z = self.c_y + 3 - random.random()
-        self.c_x = 1.1 * t * self.vel_msg.linear.x / self.args.total_turtles
-        self.c_y = t * self.vel_msg.angular.z / self.args.total_turtles
+        self.vel_msg.linear.x = self.c_lin + 6 - random.random() * 4
+        self.vel_msg.angular.z = self.c_ang + 3 - random.random()
+        self.c_lin = t * self.vel_msg.linear.x / self.args.total_turtles
+        self.c_ang = t * self.vel_msg.angular.z / self.args.total_turtles
         self.target_velocity_publisher[name].publish(self.vel_msg)
 
     def run(self):
