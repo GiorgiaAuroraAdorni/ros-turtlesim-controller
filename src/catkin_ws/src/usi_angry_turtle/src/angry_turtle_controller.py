@@ -306,7 +306,7 @@ class TurtleBot:
         """
         Create a new tread that generates and moves the target turtles
         """
-        thread = Thread(target=targets_controller_thread, args=[self])
+        thread = TargetsController(args=[self])
         thread.start()
 
         self.state = TurtleState.POSITIONING_STATE
@@ -338,44 +338,65 @@ class TurtleBot:
         rospy.spin()
 
 
-def targets_controller_thread(angry_turtle):
-    """
-    Function that handles the tread that has to generate and move the enemy turtles
-    :param angry_turtle: reference to te class TurtleBot
-    """
+class TargetsController(Thread):
 
-    spawn_turtle = rospy.ServiceProxy('/spawn', Spawn)
+    def __init__(self, args=()):
+        super(TargetsController, self).__init__()
+        self.args = args[0]
 
-    target_velocity_publisher = dict()
+        self.spawn_turtle = rospy.ServiceProxy('/spawn', Spawn)
+        self.vel_msg = Twist()
 
-    rate = rospy.Rate(10)
+        self.target_velocity_publisher = dict()
 
-    for t in range(angry_turtle.total_turtles):
+        self.rate = rospy.Rate(10)
+
+        self.total_turtles = self.args.total_turtles
+
+        return
+
+    def spawn_turtles(self, t):
+        """
+        Spawn in a random position the turtle
+        :param t: the actual index of the turtle
+        """
         name = 'turtleTarget' + str(t)
 
-        # Spawn in a random position the turtle
         offender_x = random.randint(1, 12)
         offender_y = random.randint(1, 12)
-        spawn_turtle(offender_x, offender_y, 0, name)
 
-        rospy.Subscriber('/%s/pose' % name, Pose, angry_turtle.turtle_target_pose, name)
-        target_velocity_publisher[name] = rospy.Publisher('/%s/cmd_vel' % name, Twist, queue_size=10)
+        self.spawn_turtle(offender_x, offender_y, 0, name)
+        rospy.Subscriber('/%s/pose' % name, Pose, self.args.turtle_target_pose, name)
 
+        self.target_velocity_publisher[name] = rospy.Publisher('/%s/cmd_vel' % name, Twist, queue_size=10)
         rospy.wait_for_service('/%s/set_pen' % name)
+
         set_pen = rospy.ServiceProxy('/%s/set_pen' % name, SetPen)
-        set_pen(angry_turtle.PEN_OFF)
+        set_pen(self.args.PEN_OFF)
 
-    while not rospy.is_shutdown():
-        for t in range(angry_turtle.total_turtles):
-            name = 'turtleTarget' + str(t)
+    def random_walking(self, t):
+        """
+        Lets the turtle walk randomly if it is not a teleoperated turtle
+        :param t: the actual index of the turtle
+        """
+        name = 'turtleTarget' + str(t)
 
-            # The turtle walk randomly if it is not a teleoperated turtle.
-            vel_msg = Twist()
-            vel_msg.linear.x = 10 - random.random() * 20
-            vel_msg.angular.z = 10 - random.random() * 5
-            target_velocity_publisher[name].publish(vel_msg)
+        self.vel_msg.linear.x = 5 - random.random() * 10
+        self.vel_msg.angular.z = 2 - random.random() * 4
+        self.target_velocity_publisher[name].publish(self.vel_msg)
 
-        rate.sleep()
+    def run(self):
+        """
+        Function that handles the tread that has to generate and move the enemy turtles
+        """
+        for t in range(self.total_turtles):
+            self.spawn_turtles(t)
+
+        while not rospy.is_shutdown():
+            for t in range(self.total_turtles):
+                self.random_walking(t)
+
+            self.rate.sleep()
 
 
 if __name__ == '__main__':
