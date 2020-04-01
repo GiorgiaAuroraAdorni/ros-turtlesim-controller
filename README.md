@@ -26,11 +26,21 @@ A simple node that controls a turtle in **turtlesim**:
 * ROS
 * Turtlesim
 
-#### Installation and usage
+#### Installation
+
+Clone the repository
 
 ```sh
-$ git clone https://github.com/giorgiaAuroraAdorni/ros-turtlesim-controller
+$ cd ~/catkin_ws/src
+$ git clone https://github.com/GiorgiaAuroraAdorni/ros-turtlesim-controller
 ```
+build ROS packages and update the environment
+
+```sh
+$ catkin build
+$ re.
+```
+
 #### Usage
 
 The execution can be started simply using the following command:
@@ -39,13 +49,13 @@ The execution can be started simply using the following command:
 $ roslaunch usi_angry_turtle angry_turtle.launch
 ```
 
-The file `angry_turtle.launch` is a launch file that contains the instruction to configure the two nodes required: the `turtlesim_nod` and the node `angry_turtle_controller.py` that contains the implemented controller.
+The file `angry_turtle.launch` is a launch file that contains the instruction to configure the two nodes required: the `turtlesim_node` and the node `angry_turtle_controller.py` that contains the implemented controller.
 
 Alternatively, it is possible to start the simulation as follows:
 
 - in the first command line window type:
 
-  ```
+  ```sh
   $ roscore 
   ```
 
